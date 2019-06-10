@@ -1,0 +1,301 @@
+from sklearn.metrics import roc_curve, auc
+from sklearn.model_selection import StratifiedKFold
+from scipy import interp
+import numpy as np
+import pandas as pd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib.pylab as pylab
+import seaborn as sns
+mpl.style.use('ggplot')
+sns.set_style('darkgrid')
+pylab.rcParams['figure.figsize'] = 12,8
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import accuracy_score
+from timeit import default_timer as timer
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.feature_selection import VarianceThreshold
+
+# MAIN VARIABLES ##############################################################
+
+# DATASET FILEPATH
+train_set = 'C:/Users/Liam/Desktop/Capstone/train_set_filtered.csv'
+
+df_train = pd.read_csv(train_set)
+
+# SPLIT FEATURES AND CLASS LABEL
+X = df_train.drop(columns=['has_exclusions', 'exclusions'])
+y = df_train['has_exclusions']
+
+kfold=2
+seed=10
+shuffle=False
+
+def variance_selector(data):
+    selector = VarianceThreshold()
+    selector.fit(data)
+    return data[data.columns[selector.get_support(indices=True)]]
+
+X = variance_selector(X)
+
+sc = MinMaxScaler()
+X = pd.DataFrame(sc.fit_transform(X), columns=X.columns, index=X.index)
+
+###############################################################################
+
+# FUNCTIONS ###################################################################
+def run_model(classifier, X, y):
+    tpr_scores_train, auc_scores_train, time_scores_train, accuracy_scores_train = [],[],[],[]
+    tpr_scores_test, auc_scores_test, time_scores_test, accuracy_scores_test = [],[],[],[]
+    
+    mean_fpr = np.linspace(0,1,100)
+    cv=StratifiedKFold(n_splits=kfold, random_state=seed, shuffle=shuffle)
+    
+    for train, test in cv.split(X, y):        
+        if (isinstance(X, pd.DataFrame)):
+            X_train, y_train = X.iloc[train], y.iloc[train] 
+            X_test, y_test = X.iloc[test], y.iloc[test]
+        else:
+            X_train, y_train = X.iloc[train], y.iloc[train] 
+            X_test, y_test = X.iloc[test], y.iloc[test]     
+        
+        classifier.fit(X_train, y_train)
+        
+        start = timer()
+        if hasattr(classifier, 'decision_function'):
+            y_pred_train = classifier.decision_function(X_train)
+        else:
+            y_pred_train = classifier.predict_proba(X_train)[:, 1]
+        end = timer() - start
+        time_scores_train.append(end)
+        
+        fpr, tpr, thresholds = roc_curve(y_train, y_pred_train)
+        roc_auc = roc_auc_score(y_train, y_pred_train)
+        accuracy = accuracy_score(y_train, classifier.predict(X_train))
+        
+        tpr_scores_train.append(interp(mean_fpr, fpr, tpr))
+        tpr_scores_train[-1][0] = 0.0
+        auc_scores_train.append(roc_auc)
+        accuracy_scores_train.append(accuracy)
+        
+        start = timer()
+        if hasattr(classifier, 'decision_function'):
+            y_pred_test = classifier.decision_function(X_test)
+        else:
+            y_pred_test = classifier.predict_proba(X_test)[:, 1]
+        end = timer() - start
+        time_scores_test.append(end)
+            
+        fpr, tpr, thresholds = roc_curve(y_test, y_pred_test)
+        roc_auc = roc_auc_score(y_test, y_pred_test)
+        accuracy = accuracy_score(y_test, classifier.predict(X_test))
+        
+        tpr_scores_test.append(interp(mean_fpr, fpr, tpr))
+        tpr_scores_test[-1][0] = 0.0
+        auc_scores_test.append(roc_auc)
+        accuracy_scores_test.append(accuracy)
+        print("", classifier.__class__.__name__, roc_auc)
+
+    mean_tpr_train = np.mean(tpr_scores_train, axis=0)
+    mean_tpr_train[-1] = 1.0
+    mean_tpr_test = np.mean(tpr_scores_train, axis=0)
+    mean_tpr_test[-1] = 1.0   
+    
+    mean_tpr_train = np.mean(tpr_scores_train, axis=0)
+    mean_tpr_train[-1] = 1.0
+    mean_time_train = np.mean(time_scores_train, axis=0)
+    mean_accuracy_train = np.mean(accuracy_scores_train, axis=0)
+    
+    std_auc_train = np.std(auc_scores_train)
+    std_time_train = np.std(time_scores_train)
+    
+    mean_tpr_test = np.mean(tpr_scores_test, axis=0)
+    mean_tpr_test[-1] = 1.0
+    mean_time_test = np.mean(time_scores_test, axis=0)
+    mean_accuracy_test = np.mean(accuracy_scores_test, axis=0)
+    
+    std_auc_test = np.std(auc_scores_train)
+    std_time_test = np.std(time_scores_train)
+    return {
+            'label': classifier.__class__.__name__,
+            'auc_train': np.mean(auc_scores_train, axis=0),
+            'tpr_train': mean_tpr_train,
+            'fpr_train': mean_fpr,
+            'time_train': mean_time_train,
+            'accuracy_train': mean_accuracy_train,
+            'std_auc_train': std_auc_train,
+            'std_time_train': std_time_train,
+            'auc_test': np.mean(auc_scores_test, axis=0),
+            'tpr_test': mean_tpr_test,
+            'fpr_test': mean_fpr,
+            'time_test': mean_time_test,
+            'accuracy_test': mean_accuracy_test,
+            'std_auc_test': std_auc_test,
+            'std_time_test': std_time_test,
+            }
+    
+# VISUALISATION
+def plot_multi_auc(models):
+    plt.figure(figsize=(14,8))
+    sns.set_style('darkgrid')
+    for m in models:
+        plt.plot(m['fpr_test'], m['tpr_test'], label=r'%s (Mean AUC = %0.2f $\pm$ %0.2f)' 
+                 % (m['label'], m['auc_test'], m['std_auc_test']), lw=2, alpha=1)        
+    plt.plot([0,1],[0,1],linestyle = '--',lw = 2,color = 'black')
+    plt.xlabel('False Positive Rate', fontsize=16)
+    plt.ylabel('True Positive Rate', fontsize=16)
+    plt.title('ROC - Test set using StratifiedKFold n_splits=10', fontsize=20)
+    plt.legend(loc='lower right', prop={'size': 12})
+    #plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    plt.show()
+    
+def plot_single_auc(models):
+    for m in models:
+        plt.figure(figsize=(10,7))
+        plt.plot([0,1],[0,1],linestyle = '--',lw = 2,color = 'black')
+        plt.plot(m['fpr_train'], m['tpr_train'], color='blue', 
+                 label=r'Train set (Mean AUC = %0.2f $\pm$ %0.2f)' % (m['auc_train'], m['std_auc_train']),
+                 lw=2, alpha=1)
+        plt.plot(m['fpr_test'], m['tpr_test'], color='red',
+                 label=r'Test set (Mean AUC = %0.2f $\pm$ %0.2f)' % (m['auc_test'], m['std_auc_test']),
+                 lw=2, alpha=1)
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('ROC - ' + m['label'] + ' using StratifiedKFold with n_splits=10', fontsize=16)
+        plt.legend(loc="lower right", prop={'size': 12})
+        plt.show()
+    
+def plot_multi_time(models):
+    plt.figure(figsize=(14,8))
+    names, values_train, values_test = [], [], [], 
+    bar_width = 0.3
+    for m in models:
+        names.append(m['label'])
+        values_train.append(m['time_train'])
+        values_test.append(m['time_test'])
+    # The x position of bars
+    r1 = np.arange(len(names))
+    r2 = [x + bar_width for x in r1]
+    plt.bar(r1, values_train, width=bar_width, color='cornflowerblue', align="center", edgecolor='black', capsize=7)
+    plt.bar(r2, values_test, width=bar_width, color='red', align="center", edgecolor='black', capsize=7,)
+    plt.xticks([r + bar_width for r in range(len(names))],names, rotation=30, ha='right')
+    plt.title('Bar plot - Duration in seconds to make classification', fontsize=20)
+    plt.legend(['Train', 'Test'], prop={'size': 14})
+    plt.xlabel('Classifier', fontsize=16)
+    plt.ylabel('Time (seconds)', fontsize=16)
+    plt.show()
+    
+def plot_multi_acc(models):
+    plt.figure(figsize=(14,8))
+    names, values_train, values_test = [], [], [], 
+    bar_width = 0.3
+    for m in models:
+        names.append(m['label'])
+        values_train.append(m['accuracy_train'])
+        values_test.append(m['accuracy_test'])
+    # The x position of bars
+    r1 = np.arange(len(names))
+    r2 = [x + bar_width for x in r1]
+    plt.bar(r1, values_train, width=bar_width, color='cornflowerblue', align="center", edgecolor='black', capsize=7)
+    plt.bar(r2, values_test, width=bar_width, color='red', align="center", edgecolor='black', capsize=7,)
+    plt.xticks([r + bar_width for r in range(len(names))],names, rotation=30, ha='right')
+    plt.title('Bar plot - Mean clasifier accuracy for train/test with StratifiedKfold n_splits=10', fontsize=20)
+    plt.legend(['Train', 'Test'], prop={'size': 14})
+    plt.xlabel('Classification', fontsize=16)
+    plt.ylabel('Accuracy (%)', fontsize=16)
+    plt.show()
+    
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import LinearSVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
+from sklearn.naive_bayes import GaussianNB, BernoulliNB
+from sklearn.linear_model import LogisticRegression
+from xgboost import XGBClassifier
+
+clfs = [
+    KNeighborsClassifier(),
+    GaussianNB(),
+    BernoulliNB(),
+    LogisticRegression(),
+    RandomForestClassifier(n_estimators=100),
+    AdaBoostClassifier(n_estimators=100),
+    XGBClassifier(learning_rate=0.1, n_estimators=100, max_depth=5, 
+                  min_child_weight=1, gamma=0, subsample = 0.8, 
+                  colsample_bytree=0.8, scale_pos_weight=1, 
+                  objective='binary:logistic', seed=10),
+    GradientBoostingClassifier(),
+    LinearSVC()
+]
+
+clf = XGBClassifier(learning_rate=0.1, n_estimators=100, max_depth=5, 
+                  min_child_weight=1, gamma=0, subsample = 0.8, 
+                  colsample_bytree=0.8, scale_pos_weight=1, 
+                  objective='binary:logistic', seed=10)
+
+from sklearn.feature_selection import SelectKBest, chi2, f_regression
+from sklearn.feature_selection import RFE
+
+sel = SelectKBest(chi2, k=600)
+sel.fit(X,y)
+mask = sel.get_support(indices=False)
+X_kb = X.loc[:, mask]
+print(X_kb.shape)
+
+from sklearn.feature_selection import RFECV
+sel_rfe = RFE(clf, n_features_to_select=700, step=200)
+sel_rfe.fit(X, y)
+X_rfe = sel_rfe.transform(X)
+mask = sel_rfe.get_support(indices=False)
+X_rfe = X.loc[:, mask]
+print(X_rfe.shape)
+
+from sklearn.feature_selection import SelectFromModel
+clf2 = clf.fit(X, y)
+sel_tfs = SelectFromModel(clf, prefit=True)
+sel_tfs.transform(X)
+mask = sel_tfs.get_support(indices=False)
+X_tfs = X.loc[:, mask]
+print(X_tfs.shape)
+
+from sklearn.decomposition import PCA
+pca = PCA(n_components=200)
+pca.fit(X)
+X_pca = pd.DataFrame(pca.transform(X))
+print(X_pca.shape)
+
+X_ = [
+      X_kb,
+      X_rfe,
+      X_tfs,
+      X_pca
+]
+
+all_results = []
+r1,r2,r3,r4 = [], [], [], []
+for cl in clfs:
+    r1 = run_model(cl, X_kb, y)
+    r1.update({'method':'SelectKBest'})
+    all_results.append(r1)
+    r2 = run_model(cl, X_rfe, y)
+    r1.update({'method':'RecursiveFeatureSelection'})
+    all_results.append(r2)   
+    r3 = run_model(cl, X_tfs, y)
+    r1.update({'method':'XGBoost + SelectFromModel'})
+    all_results.append(r3) 
+    r4 = run_model(cl, X_pca, y)
+    r1.update({'method':'PrincipalComponentAnalysis'})
+    all_results.append(r4)   
+    r1, r2, r3, r4 = [], [], [], []
+    
+all_results.append(r1)   
+all_results.append(r2)   
+all_results.append(r3)   
+all_results.append(r4)   
+all_results = pd.DataFrame(all_results)
+
+plt.figure()
+ax = sns.barplot(x="label", y="auc_test", hue="method", data=all_results)
+plt.show()
