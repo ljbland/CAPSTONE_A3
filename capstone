@@ -230,6 +230,14 @@ clfs = [
     LinearSVC()
 ]
 
+baseline = []
+for cl in clfs:
+    result = run_model(cl, X, y)
+    baseline.append(result)
+
+plot_multi_auc(baseline)
+plot_multi_time(baseline)
+
 clf = XGBClassifier(learning_rate=0.1, n_estimators=100, max_depth=5, 
                   min_child_weight=1, gamma=0, subsample = 0.8, 
                   colsample_bytree=0.8, scale_pos_weight=1, 
@@ -273,29 +281,10 @@ X_ = [
       X_pca
 ]
 
-all_results = []
-r1,r2,r3,r4 = [], [], [], []
+result = []
 for cl in clfs:
-    r1 = run_model(cl, X_kb, y)
-    r1.update({'method':'SelectKBest'})
-    all_results.append(r1)
-    r2 = run_model(cl, X_rfe, y)
-    r1.update({'method':'RecursiveFeatureSelection'})
-    all_results.append(r2)   
-    r3 = run_model(cl, X_tfs, y)
-    r1.update({'method':'XGBoost + SelectFromModel'})
-    all_results.append(r3) 
-    r4 = run_model(cl, X_pca, y)
-    r1.update({'method':'PrincipalComponentAnalysis'})
-    all_results.append(r4)   
-    r1, r2, r3, r4 = [], [], [], []
-    
-all_results.append(r1)   
-all_results.append(r2)   
-all_results.append(r3)   
-all_results.append(r4)   
-all_results = pd.DataFrame(all_results)
+    result = run_model(cl, X, y)
+    result.append(result)
 
-plt.figure()
-ax = sns.barplot(x="label", y="auc_test", hue="method", data=all_results)
-plt.show()
+plot_multi_auc(result)
+plot_multi_time(result)
