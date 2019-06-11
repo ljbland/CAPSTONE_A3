@@ -62,7 +62,6 @@ df_test_sum = pd.read_csv(file_test_sum_insured)
 df_train['benefit_sum_insured'] = df_train_sum.values.astype('int64')
 df_test['benefit_sum_insured'] = df_test_sum.values.astype('int64')
 
-df_train = df_train.head(100)
 X = df_train.drop(columns=['has_exclusions', 'exclusions'])
 y = df_train['has_exclusions']
 
