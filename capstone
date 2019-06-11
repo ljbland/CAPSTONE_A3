@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import matplotlib as plt
+import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import interp
 from timeit import default_timer as timer
@@ -18,7 +18,8 @@ from sklearn.decomposition import PCA
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTree
 from sklearn.naive_bayes import GaussianNB
 from sklearn.naive_bayes import BernoulliNB
 from sklearn.linear_model import LogisticRegression
@@ -61,6 +62,7 @@ df_test_sum = pd.read_csv(file_test_sum_insured)
 df_train['benefit_sum_insured'] = df_train_sum.values.astype('int64')
 df_test['benefit_sum_insured'] = df_test_sum.values.astype('int64')
 
+df_train = df_train.head(100)
 X = df_train.drop(columns=['has_exclusions', 'exclusions'])
 y = df_train['has_exclusions']
 
