@@ -534,7 +534,7 @@ def plot_multi_acc(models):
 clfs = [
     KNeighborsClassifier(),
     GaussianNB(),
-    BernoulliNB(,
+    BernoulliNB(),
     LogisticRegression(),
     RandomForestClassifier(),
     AdaBoostClassifier(),
@@ -596,13 +596,13 @@ scores = []
 for score in results:
     if (score['method'] == 'SelectKBest'):
         scores.append(score)
-        
+
 plot_multi_auc(scores)
 
 # RecursiveFeatureSelection AUC
 scores = []
 for score in results:
-    if (score['method'] == 'SelectKBest'):
+    if (score['method'] == 'RecursiveFeatureSelection'):
         scores.append(score)
 
 plot_multi_auc(scores)
@@ -610,7 +610,7 @@ plot_multi_auc(scores)
 
 scores = []
 for score in results:
-    if (score['method'] == 'SelectKBest'):
+    if (score['method'] == 'TreeBasedFeatureSelection'):
         scores.append(score)
 
 plot_multi_auc(scores)
@@ -618,7 +618,7 @@ plot_multi_auc(scores)
 # PrincipalComponentAnalysis AUC
 scores = []
 for score in results:
-    if (score['method'] == 'SelectKBest':)
+    if (score['method'] == 'PrincipalComponentAnalysis'):
         scores.append(score)
 
 plot_multi_auc(scores)
